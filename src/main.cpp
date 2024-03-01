@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include <Wire.h>
 #include <DHT.h>
 #include <Adafruit_SSD1306.h>
@@ -648,3 +649,4 @@ void loop()
     }
     displayData(timeinfo, dhtData);
 }
+
