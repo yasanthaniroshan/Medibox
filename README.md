@@ -15,8 +15,8 @@ A embebedd project which mainly focused for the Medibox where tempurature and hu
             $$ Total\ Power\ Consumption = V \times I  = 0.9\times(3.3V \times 0.8 mA) + 0.1 \times (3.3V \times 100 mA) = 35.376\,mW$$
         - **Average Saving**
             $$ Power\ Saving  = \dfrac{294.624}{330}\times 100 \% = \mathbf{89.2}\%$$
-    > [!NOTE]
-    > These values can be changed according to the device and Average using time
+> [!NOTE]
+> These values can be changed according to the device and average active time
             
             
 ## Screenshots
