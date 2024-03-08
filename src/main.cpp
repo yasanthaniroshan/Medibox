@@ -1,5 +1,4 @@
 #include <Arduino.h>
-
 #include <Wire.h>
 #include <DHT.h>
 #include <Adafruit_SSD1306.h>
@@ -11,6 +10,7 @@
 #define SCREEN_HIEGHT 64
 #define OLED_RESET 4
 #define SCREEN_ADDRESS 0x3C
+
 #define LED 2
 #define BUZZER 5
 
@@ -21,8 +21,8 @@
 
 #define I2C_SDA 33
 #define I2C_SCL 32
-#define DHTPIN 15     // DHT22 signal pin is connected to GPIO 4
-#define DHTTYPE DHT22 // DHT22 (AM2302)
+#define DHTPIN 15
+#define DHTTYPE DHT22
 
 #define TEMPURATION_LOWER_LIMIT 26
 #define TEMPURATION_UPPER_LIMIT 32
@@ -66,6 +66,7 @@ typedef struct
     byte minutes;
     bool isSet;
     bool isRinging;
+    int alarmTimeInSeconds;
     hw_timer_t *timerAlarm;
 } AlarmTime;
 
@@ -87,7 +88,7 @@ Button goBackwardButton = {false, 0, 0};
 Button cancelButton = {false, 0, 0};
 Menu menu = {false, false, false, false, 0};
 
-AlarmTime alarms[3] = {{0, "Alarm-01", 0, 0,false,false,NULL}, {1, "Alarm-02", 0, 0,false,false,NULL}, {2, "Alarm-03", 0, 0,false,false,NULL}};
+AlarmTime alarms[3] = {{0, "Alarm-01", 0, 0, false, false, 0, NULL}, {1, "Alarm-02", 0, 0, false, false, 0, NULL}, {2, "Alarm-03", 0, 0, false, false, 0, NULL}};
 AlarmTime offset = {0, "Offset", 5, 30};
 
 const char *ssid = "MSI 8690";
@@ -96,6 +97,8 @@ const char *password = "abcdefgh";
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 19800;
 const int daylightOffset_sec = 0;
+
+int timertime[3] = {0, 0, 0};
 
 void intializeDisplay();
 void displayText(String text);
@@ -108,9 +111,50 @@ Preferences preferences;
 TwoWire wireInterfaceDisplay = TwoWire(0);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HIEGHT, &wireInterfaceDisplay, OLED_RESET);
 DHT dht(DHTPIN, DHTTYPE);
+
+int updateTimerList();
+void wifiInit();
+void setTime();
+void intializeDisplay();
+void ringAlarm();
+void loadAlarms(AlarmTime *alarms, Preferences *preferences);
+void saveAlarm(AlarmTime *alarm, Preferences *preferences);
+void setAlarm(AlarmTime *alarm);
+void changeTimeZone(AlarmTime *alarm);
+void displayText(String text);
+void displayData(tm timeinfo, DHTData dhtData);
+void displayAlarm(byte data, String text);
+void handleAlarm(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void handleTimeZone(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustAlarmHours(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustAlarmMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustTimeZoneHours(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustTimeZoneMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void handleMenu(MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void DHTInit();
+void measureDHT(DHTData *dhtData);
+void getTime(tm *timeinfo);
+bool debounce(Button *button);
+void displayMenu(SelectedFrame *selectedFrame, Menu *menu);
+void pooling(Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+bool handleMainMenu(SelectedFrame *selectedFrame, Menu *menu, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+
+
 void IRAM_ATTR timer_isr()
 {
-    digitalWrite(BUZZER, HIGH);
+
+    ringAlarm();
+}
+
+int updateTimerList()
+{
+    bool isNear = false;
+    int alarmID = -1;
+    for (int i = 0; i < 3; i++)
+    {
+        timertime[i] = timerReadMilis(alarms[i].timerAlarm);
+    }
+    return alarmID;
 }
 
 void wifiInit()
@@ -139,8 +183,7 @@ void wifiInit()
 void setTime()
 {
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  }
-
+}
 
 void intializeDisplay()
 {
@@ -168,7 +211,7 @@ void loadAlarms(AlarmTime *alarms, Preferences *preferences)
         alarms[i].hours = preferences->getUInt("hour", 0);
         alarms[i].minutes = preferences->getUInt("minute", 0);
         setAlarm(&alarms[i]);
-        Serial.println("Alarm setted : "+String(alarms[i].hours)+":"+String(alarms[i].minutes));
+        Serial.println("Alarm setted : " + String(alarms[i].hours) + ":" + String(alarms[i].minutes));
         preferences->end();
     }
 }
@@ -183,7 +226,7 @@ void saveAlarm(AlarmTime *alarm, Preferences *preferences)
 
 void setAlarm(AlarmTime *alarm)
 {
-    if(alarm->timerAlarm!=NULL)
+    if (alarm->timerAlarm != NULL)
     {
         Serial.println("Timer end");
         timerDetachInterrupt(alarm->timerAlarm);
@@ -197,6 +240,7 @@ void setAlarm(AlarmTime *alarm)
     getTime(&timeinfo);
     int timeNowInSeconds = timeinfo.tm_hour * 3600 + timeinfo.tm_min * 60 + timeinfo.tm_sec;
     int alarmTimeInSeconds = (alarm->hours * 3600 + alarm->minutes * 60);
+
     if (alarmTimeInSeconds < timeNowInSeconds)
     {
         alarmTime = 86400 - timeNowInSeconds + alarmTimeInSeconds;
@@ -207,10 +251,12 @@ void setAlarm(AlarmTime *alarm)
     }
     Serial.println("Time now : " + String(timeNowInSeconds));
     Serial.println("Alarm time : " + String(alarmTime));
+    alarm->alarmTimeInSeconds = alarmTime * 1000 + millis();
+
     alarmTime = alarmTime * threshold;
     alarm->timerAlarm = timerBegin(timer_id, prescaler, true);
     timerAttachInterrupt(alarm->timerAlarm, &timer_isr, true);
-    timerAlarmWrite(alarm->timerAlarm, alarmTime, true);
+    timerAlarmWrite(alarm->timerAlarm, alarmTime, false);
     timerAlarmEnable(alarm->timerAlarm);
 }
 
@@ -649,7 +695,7 @@ bool handleMainMenu(SelectedFrame *selectedFrame, Menu *menu, Button *menuButton
 
 void ringAlarm()
 {
-    digitalWrite(BUZZER, HIGH);
+    tone(BUZZER, 800, 1000);
 }
 
 void setup()
@@ -670,8 +716,8 @@ void setup()
     Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
     loadAlarms(alarms, &preferences);
     delay(2000);
-    esp_sleep_enable_timer_wakeup(1 * 1000000 - 30000); // light sleep for 2 seconds
-    gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
+    esp_sleep_enable_timer_wakeup(1 * 1000000); // light sleep for 2 seconds
+    gpio_wakeup_enable(GPIO_NUM_27, GPIO_INTR_LOW_LEVEL);
     esp_sleep_enable_gpio_wakeup();
     esp_light_sleep_start();
 }
@@ -682,8 +728,8 @@ void loop()
     measureDHT(&dhtData);
     getTime(&timeinfo);
     displayData(timeinfo, dhtData);
-    long end = millis();
-    Serial.println("Time elapsed : " + String(end - start));
+    updateTimerList();
+
     if (menuButton.pressed && debounce(&menuButton))
     {
         menuButton.pressed = false;
@@ -694,5 +740,12 @@ void loop()
         }
         menu.isClosed = false;
     }
+    int alarmID = updateTimerList();
+    Serial.println("Timer values : " + String(timertime[0]) + " " + String(timertime[1]) + " " + String(timertime[2]));
+    Serial.println("Alarms time in seconds : " + String(alarms[0].alarmTimeInSeconds) + " " + String(alarms[1].alarmTimeInSeconds) + " " + String(alarms[2].alarmTimeInSeconds));
+    long end = millis();
+    hw_timer_t *timer = alarms[0].timerAlarm;
+    Serial.println("Alarm configurations : ");
+    Serial.println("Time elapsed : " + String(end - start));
+    esp_light_sleep_start();
 }
-
