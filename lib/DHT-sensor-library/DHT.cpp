@@ -25,7 +25,7 @@
 
 #include "DHT.h"
 
-#define MIN_INTERVAL 2000 /**< min interval value */
+#define MIN_INTERVAL 2500 /**< min interval value */
 #define TIMEOUT                                                                \
   UINT32_MAX /**< Used programmatically for timeout.                           \
                    Not a timeout duration. Type: uint32_t. */
