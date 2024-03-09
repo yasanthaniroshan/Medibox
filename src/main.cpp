@@ -6,78 +6,7 @@
 #include "time.h"
 #include <Preferences.h>
 #include "bitmaps.h"
-
-#define SCREEN_WIDTH 128
-#define SCREEN_HIEGHT 64
-#define OLED_RESET 4
-#define SCREEN_ADDRESS 0x3C
-#define LED 2
-#define BUZZER 5
-
-#define MenuInterruptPin 27
-#define GoForwardInterruptPin 26
-#define GoBackwardInterruptPin 25
-#define CancelInterruptPin 35
-
-#define I2C_SDA 33
-#define I2C_SCL 32
-#define DHTPIN 15     // DHT22 signal pin is connected to GPIO 4
-#define DHTTYPE DHT22 // DHT22 (AM2302)
-
-#define TEMPURATION_LOWER_LIMIT 26
-#define TEMPURATION_UPPER_LIMIT 32
-
-#define HUMIDITY_LOWER_LIMIT 60
-#define HUMIDITY_UPPER_LIMIT 80
-
-typedef struct
-{
-    float temperature;
-    float humidity;
-} DHTData;
-
-typedef struct
-{
-    bool pressed;
-    int millisPressed;
-    int numberKeyPresses;
-} Button;
-
-typedef struct
-{
-    bool pressed;
-    bool isPopedUp;
-    bool isClosed;
-    bool isSubMenuClosed;
-    byte numberKeyPresses;
-
-} Menu;
-
-typedef struct
-{
-    void *selectedOption(void);
-    byte frameStartY;
-} SelectedFrame;
-typedef struct
-{
-    byte alarm_id;
-    char *alarm_name;
-    byte hours;
-    byte minutes;
-    bool isSet;
-    bool isRinging;
-    int64_t alarmTimeInSeconds;
-    esp_timer_handle_t oneshot_timer;
-} AlarmTime;
-
-typedef enum
-{
-    Alarm_01 = 0,
-    Alarm_02 = 1,
-    Alarm_03 = 2,
-    SetOffset = 3,
-    DisableAllAlarms = 4
-} MenuOptions;
+#include <Defintions.h>
 
 MenuOptions selectedOption = Alarm_01;
 
@@ -87,8 +16,12 @@ Button goForwardButton = {false, 0, 0};
 Button goBackwardButton = {false, 0, 0};
 Button cancelButton = {false, 0, 0};
 Menu menu = {false, false, false, false, 0};
-AlarmTime alarms[3] = {{0, "Alarm-01", 0, 0, false, false, 0, NULL}, {1, "Alarm-02", 0, 0, false, false, 0, NULL}, {2, "Alarm-03", 0, 0, false, false, 0, NULL}};
-AlarmTime offset = {0, "Offset", 5, 30, false, false, 0, NULL};
+Time time_01 = {0, "Alarm-01", 0, 0};
+Time time_02 = {1, "Alarm-02", 0, 0};
+Time time_03 = {2, "Alarm-03", 0, 0};
+Alarm alarms[3] = {{&time_01, false, false, 0}, {&time_02, false, false, 0}, {&time_03, false, false, 0}};
+Alarm *alarmPointers[3] = {&alarms[0], &alarms[1], &alarms[2]};
+Time offset = {3, "Offset", 5, 30};
 
 const char *ssid = "MSI 8690";
 const char *password = "abcdefgh";
@@ -109,26 +42,26 @@ void ringAlarm();
 void measureDHT(DHTData *dhtData);
 void setTime(int gmtOffset_sec, int daylightOffset_sec, const char *ntpServer);
 void intializeDisplay();
-void loadAlarms(AlarmTime *alarms, Preferences *preferences);
-void saveAlarm(AlarmTime *alarm, Preferences *preferences);
-void setAlarm(AlarmTime *alarm);
-void changeTimeZone(AlarmTime *alarm);
+void loadAlarms(Alarm **alarms[], Preferences *preferences);
+void saveAlarm(Alarm *alarm, Preferences *preferences);
+void setAlarm(Alarm *alarm);
+void changeTimeZone(Alarm *time);
 void displayText(String text);
 void mainFaceDisplay(tm timeinfo, DHTData dhtData);
 void displayAlarm(byte data, String text);
-void handleAlarm(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-void handleTimeZone(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-void adjustAlarmHours(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-void adjustAlarmMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-void adjustTimeZoneHours(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-void adjustTimeZoneMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-void handleMenu(MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void handleAlarm(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void handleTimeZone(Alarm *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustAlarmHours(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustAlarmMinutes(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void adjustTimeZoneMinutes(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
 void measureDHT(DHTData *dhtData);
 void getTime(tm *timeinfo);
 bool debounce(Button *button);
 void displayMenu(SelectedFrame *selectedFrame, Menu *menu);
 void pooling(Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
-bool handleMainMenu(SelectedFrame *selectedFrame, Menu *menu, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+void handleMenu(Alarm *alarms[], Time *offset, MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
+bool handleMainMenu(Alarm *alarms[], Time *offset, SelectedFrame *selectedFrame, Menu *menu, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
 
 struct tm timeinfo;
 DHTData dhtData;
@@ -137,21 +70,21 @@ TwoWire wireInterfaceDisplay = TwoWire(0);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HIEGHT, &wireInterfaceDisplay, OLED_RESET);
 DHT dht(DHTPIN, DHTTYPE);
 
-void isAlarm(AlarmTime alarms[])
+void isAlarm(Alarm *alarms[])
 {
     getTime(&timeinfo);
     for (int i = 0; i < 3; i++)
     {
 
-        if (alarms[i].isSet && timeinfo.tm_hour == alarms[i].hours && timeinfo.tm_min == alarms[i].minutes)
+        if (alarms[i]->isSet && timeinfo.tm_hour == alarms[i]->time->hours && timeinfo.tm_min == alarms[i]->time->minutes)
         {
-            alarms[i].isRinging = true;
+            alarms[i]->isRinging = true;
             ringingAlarm = true;
-            alarms[i].isSet = false;
+            alarms[i]->isSet = false;
         }
-        else if (alarms[i].isSet && alarms[i].alarmTimeInSeconds > 0)
+        else if (alarms[i]->isSet && alarms[i]->alarmTimeInSeconds > 0)
         {
-            alarms[i].alarmTimeInSeconds--;
+            alarms[i]->alarmTimeInSeconds--;
         }
     }
 }
@@ -180,7 +113,8 @@ void intializeDisplay(TwoWire *wireInterfaceDisplay, Adafruit_SSD1306 *display)
     wireInterfaceDisplay->begin(I2C_SDA, I2C_SCL, 100000);
     if (!display->begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
     {
-        for (;;);
+        for (;;)
+            ;
     }
     display->clearDisplay();
     display->setTextSize(2);
@@ -191,37 +125,40 @@ void intializeDisplay(TwoWire *wireInterfaceDisplay, Adafruit_SSD1306 *display)
     display->setTextSize(1);
     delay(350);
 }
-void loadAlarms(AlarmTime *alarms, Preferences *preferences)
+void loadAlarms(Alarm *alarms[], Preferences *preferences)
 {
     messageDisplay("Alarms", "Syncing..", syncing_alarms);
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; ++i)
     {
-        preferences->begin(alarms[i].alarm_name, false);
-        Serial.println(alarms[i].alarm_name);
-        alarms[i].hours = preferences->getUInt("hour", 0);
-        alarms[i].minutes = preferences->getUInt("minute", 0);
-        setAlarm(&alarms[i]);
-        Serial.println("Alarm setted : " + String(alarms[i].hours) + ":" + String(alarms[i].minutes));
+        Serial.println("Before preferences access");
+        Serial.println(alarms[i]->alarmTimeInSeconds);
+        preferences->begin(alarms[i]->time->time_name, false);
+        Serial.println("After preferences access");
+
+        alarms[i]->time->hours = preferences->getUInt("hour", 0);
+        alarms[i]->time->minutes = preferences->getUInt("minute", 0);
+        setAlarm(alarms[i]);
+        Serial.println("Alarm setted : " + String(alarms[i]->time->hours) + ":" + String(alarms[i]->time->minutes));
         preferences->end();
     }
     delay(350);
     messageDisplay("Alarms", "Synced !", syncing_alarms);
 }
 
-void saveAlarm(AlarmTime *alarm, Preferences *preferences)
+void saveAlarm(Alarm *alarm, Preferences *preferences)
 {
-    preferences->begin(alarm->alarm_name, false);
-    preferences->putUInt("hour", alarm->hours);
-    preferences->putUInt("minute", alarm->minutes);
+    preferences->begin(alarm->time->time_name, false);
+    preferences->putUInt("hour", alarm->time->hours);
+    preferences->putUInt("minute", alarm->time->minutes);
     preferences->end();
 }
 
-void setAlarm(AlarmTime *alarm)
+void setAlarm(Alarm *alarm)
 {
     long alarmTime;
     getTime(&timeinfo);
     long timeNowInSeconds = timeinfo.tm_hour * 3600 + timeinfo.tm_min * 60 + timeinfo.tm_sec;
-    long alarmTimeInSeconds = (alarm->hours * 3600 + alarm->minutes * 60);
+    long alarmTimeInSeconds = (alarm->time->hours * 3600 + alarm->time->minutes * 60);
     Serial.println("Time now in seconds : " + String(timeNowInSeconds));
     if (alarmTimeInSeconds < timeNowInSeconds)
     {
@@ -235,31 +172,31 @@ void setAlarm(AlarmTime *alarm)
     alarm->isSet = true;
     Serial.println("Alarm time in seconds : " + String(alarm->alarmTimeInSeconds));
 }
-void disableAlarm(AlarmTime *alarm, Preferences *preferences)
+void disableAlarm(Alarm *alarm, Preferences *preferences)
 {
     alarm->isSet = false;
     alarm->isRinging = false;
     saveAlarm(alarm, preferences);
 }
 
-void changeTimeZone(AlarmTime *alarm)
+void changeTimeZone(Time *time)
 {
     int offset;
-    if (alarm->hours > -12 && alarm->hours < 0)
+    if (time->hours > -12 && time->hours < 0)
     {
-        offset = alarm->hours * 3600 - alarm->minutes * 60;
+        offset = time->hours * 3600 - time->minutes * 60;
     }
-    else if (alarm->hours > 0 && alarm->hours < 14)
+    else if (time->hours > 0 && time->hours < 14)
     {
-        offset = alarm->hours * 3600 + alarm->minutes * 60;
+        offset = time->hours * 3600 + time->minutes * 60;
     }
-    else if (alarm->hours == -12)
+    else if (time->hours == -12)
     {
-        offset = alarm->hours * 3600;
+        offset = time->hours * 3600;
     }
-    else if (alarm->hours == 14)
+    else if (time->hours == 14)
     {
-        offset = alarm->hours * 3600;
+        offset = time->hours * 3600;
     }
     configTime(offset, 0, ntpServer);
 }
@@ -300,13 +237,13 @@ void mainFaceDisplay(tm timeinfo, DHTData dhtData)
     display.println(&timeinfo, "%H:%M:%S");
     display.setTextSize(1);
     display.display();
-    if(warn)
+    if (warn)
     {
-        ledcWriteTone(0,3150);
+        ledcWriteTone(0, 3150);
         delay(200);
-        ledcWriteTone(0,0);
+        ledcWriteTone(0, 0);
     }
-    }
+}
 void displayAlarm(byte data, String text)
 {
     display.clearDisplay();
@@ -323,15 +260,15 @@ void displayAlarm(byte data, String text)
     display.display();
     display.setTextSize(1);
 }
-void handleAlarm(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void handleAlarm(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
-    displayAlarm(alarm->hours, "Hours");
+    displayAlarm(alarm->time->hours, "Hours");
     while (!menu.isSubMenuClosed)
     {
         adjustAlarmHours(alarm, menuButton, goForwardButton, goBackwardButton, cancelButton);
     }
     menu.isSubMenuClosed = false;
-    displayAlarm(alarm->minutes, "Minutes");
+    displayAlarm(alarm->time->minutes, "Minutes");
     while (!menu.isSubMenuClosed)
     {
         adjustAlarmMinutes(alarm, menuButton, goForwardButton, goBackwardButton, cancelButton);
@@ -340,52 +277,52 @@ void handleAlarm(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, 
     setAlarm(alarm);
     saveAlarm(alarm, &preferences);
 }
-void handleTimeZone(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void handleTimeZone(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
-    displayAlarm(alarm->hours, "Hours");
+    displayAlarm(time->hours, "Hours");
     while (!menu.isSubMenuClosed)
     {
-        adjustTimeZoneHours(alarm, menuButton, goForwardButton, goBackwardButton, cancelButton);
+        adjustTimeZoneHours(time, menuButton, goForwardButton, goBackwardButton, cancelButton);
     }
     menu.isSubMenuClosed = false;
-    displayAlarm(alarm->minutes, "Minutes");
+    displayAlarm(time->minutes, "Minutes");
     while (!menu.isSubMenuClosed)
     {
-        adjustTimeZoneMinutes(alarm, menuButton, goForwardButton, goBackwardButton, cancelButton);
+        adjustTimeZoneMinutes(time, menuButton, goForwardButton, goBackwardButton, cancelButton);
     }
     menu.isSubMenuClosed = true;
-    changeTimeZone(alarm);
+    changeTimeZone(time);
 }
-void adjustAlarmHours(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void adjustAlarmHours(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
     pooling(goForwardButton, goBackwardButton, cancelButton);
     if (goForwardButton->pressed)
     {
-        if (alarm->hours < 23)
+        if (alarm->time->hours < 23)
         {
-            alarm->hours++;
+            alarm->time->hours++;
         }
         else
         {
-            alarm->hours = 0;
+            alarm->time->hours = 0;
         }
         goForwardButton->pressed = false;
         goForwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->hours, "Hours");
+        displayAlarm(alarm->time->hours, "Hours");
     }
     else if (goBackwardButton->pressed)
     {
-        if (alarm->hours > 0)
+        if (alarm->time->hours > 0)
         {
-            alarm->hours--;
+            alarm->time->hours--;
         }
         else
         {
-            alarm->hours = 23;
+            alarm->time->hours = 23;
         }
         goBackwardButton->pressed = false;
         goBackwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->hours, "Hours");
+        displayAlarm(alarm->time->hours, "Hours");
     }
     else if (cancelButton->pressed)
     {
@@ -400,36 +337,36 @@ void adjustAlarmHours(AlarmTime *alarm, Button *menuButton, Button *goForwardBut
         menuButton->numberKeyPresses = 0;
     }
 }
-void adjustAlarmMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void adjustAlarmMinutes(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
     pooling(goForwardButton, goBackwardButton, cancelButton);
     if (goForwardButton->pressed)
     {
-        if (alarm->minutes < 59)
+        if (alarm->time->minutes < 59)
         {
-            alarm->minutes++;
+            alarm->time->minutes++;
         }
         else
         {
-            alarm->minutes = 0;
+            alarm->time->minutes = 0;
         }
         goForwardButton->pressed = false;
         goForwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->minutes, "Minutes");
+        displayAlarm(alarm->time->minutes, "Minutes");
     }
     else if (goBackwardButton->pressed)
     {
-        if (alarm->minutes > 0)
+        if (alarm->time->minutes > 0)
         {
-            alarm->minutes--;
+            alarm->time->minutes--;
         }
         else
         {
-            alarm->minutes = 59;
+            alarm->time->minutes = 59;
         }
         goBackwardButton->pressed = false;
         goBackwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->minutes, "Minutes");
+        displayAlarm(alarm->time->minutes, "Minutes");
     }
     else if (cancelButton->pressed)
     {
@@ -444,44 +381,44 @@ void adjustAlarmMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardB
         menuButton->numberKeyPresses = 0;
     }
 }
-void adjustTimeZoneHours(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
     pooling(goForwardButton, goBackwardButton, cancelButton);
     if (goForwardButton->pressed)
     {
-        if (alarm->hours > -13 && alarm->hours < 15)
+        if (time->hours > -13 && time->hours < 15)
         {
-            alarm->hours++;
+            time->hours++;
         }
-        else if (alarm->hours >= 15)
+        else if (time->hours >= 15)
         {
-            alarm->hours = -13;
+            time->hours = -13;
         }
-        else if (alarm->hours <= -13)
+        else if (time->hours <= -13)
         {
-            alarm->hours = 15;
+            time->hours = 15;
         }
         goForwardButton->pressed = false;
         goForwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->hours, "Hours");
+        displayAlarm(time->hours, "Hours");
     }
     else if (goBackwardButton->pressed)
     {
-        if (alarm->hours > -13 && alarm->hours < 15)
+        if (time->hours > -13 && time->hours < 15)
         {
-            alarm->hours--;
+            time->hours--;
         }
-        else if (alarm->hours <= -13)
+        else if (time->hours <= -13)
         {
-            alarm->hours = 15;
+            time->hours = 15;
         }
-        else if (alarm->hours >= 15)
+        else if (time->hours >= 15)
         {
-            alarm->hours = -13;
+            time->hours = -13;
         }
         goBackwardButton->pressed = false;
         goBackwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->hours, "Hours");
+        displayAlarm(time->hours, "Hours");
     }
     else if (cancelButton->pressed)
     {
@@ -496,36 +433,36 @@ void adjustTimeZoneHours(AlarmTime *alarm, Button *menuButton, Button *goForward
         menuButton->numberKeyPresses = 0;
     }
 }
-void adjustTimeZoneMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void adjustTimeZoneMinutes(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
     pooling(goForwardButton, goBackwardButton, cancelButton);
     if (goForwardButton->pressed)
     {
-        if (alarm->minutes < 59)
+        if (time->minutes < 59)
         {
-            alarm->minutes++;
+            time->minutes++;
         }
         else
         {
-            alarm->minutes = 0;
+            time->minutes = 0;
         }
         goForwardButton->pressed = false;
         goForwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->minutes, "Minutes");
+        displayAlarm(time->minutes, "Minutes");
     }
     else if (goBackwardButton->pressed)
     {
-        if (alarm->minutes > 0)
+        if (time->minutes > 0)
         {
-            alarm->minutes--;
+            time->minutes--;
         }
         else
         {
-            alarm->minutes = 59;
+            time->minutes = 59;
         }
         goBackwardButton->pressed = false;
         goBackwardButton->numberKeyPresses = 0;
-        displayAlarm(alarm->minutes, "Minutes");
+        displayAlarm(time->minutes, "Minutes");
     }
     else if (cancelButton->pressed)
     {
@@ -540,28 +477,38 @@ void adjustTimeZoneMinutes(AlarmTime *alarm, Button *menuButton, Button *goForwa
         menuButton->numberKeyPresses = 0;
     }
 }
-void handleMenu(MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+void handleMenu(Alarm *alarms[], Time *offset, MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
     if (selectedOption == Alarm_01 || selectedOption == Alarm_02 || selectedOption == Alarm_03)
     {
         menu.isSubMenuClosed = false;
-        handleAlarm(&alarms[selectedOption], menuButton, goForwardButton, goBackwardButton, cancelButton);
-        displayMenu(&selectedFrame, &menu);
+        Serial.println("Entering to handle Alarm");
+        handleAlarm(alarms[selectedOption], menuButton, goForwardButton, goBackwardButton, cancelButton);
+        Serial.println("Exiting handle alarm");
+        menu.isClosed = true;
+        messageDisplay("Alarm","Alarm set !",alarm_success);
+        delay(600);
         return;
     }
     else if (selectedOption == SetOffset)
     {
         menu.isSubMenuClosed = false;
-        handleTimeZone(&offset, menuButton, goForwardButton, goBackwardButton, cancelButton);
-        displayMenu(&selectedFrame, &menu);
+        handleTimeZone(offset, menuButton, goForwardButton, goBackwardButton, cancelButton);
+        messageDisplay("Setting Offset","Offset Changed",Offset_set);
+        delay(600);
+        menu.isClosed = true;
+
     }
     else if (selectedOption == DisableAllAlarms)
     {
         menu.isSubMenuClosed = false;
         for (int i = 0; i < 3; i++)
         {
-            disableAlarm(&alarms[i], &preferences);
+            messageDisplay("Alarms", "Disabling Alarms", disable_alarms);
+            disableAlarm(alarms[i], &preferences);
+            delay(600);
         }
+        menu.isClosed = true;
     }
 }
 void DHTInit(DHT *dht)
@@ -649,7 +596,7 @@ void pooling(Button *goForwardButton, Button *goBackwardButton, Button *cancelBu
     delay(100);
 }
 
-bool handleMainMenu(SelectedFrame *selectedFrame, Menu *menu, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
+bool handleMainMenu(Alarm *alarms[], Time *offset, SelectedFrame *selectedFrame, Menu *menu, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
 {
     pooling(goForwardButton, goBackwardButton, cancelButton);
     if (goForwardButton->pressed)
@@ -695,18 +642,19 @@ bool handleMainMenu(SelectedFrame *selectedFrame, Menu *menu, Button *menuButton
     {
         menuButton->numberKeyPresses = 0;
         menuButton->pressed = false;
-        handleMenu(selectedOption, menuButton, goForwardButton, goBackwardButton, cancelButton);
+        Serial.println("Entering to hadle Menur");
+        handleMenu(alarms, offset, selectedOption, menuButton, goForwardButton, goBackwardButton, cancelButton);
+        Serial.println("Exiting from hanlde menu");
         return true;
     }
     return false;
 }
 
-
 void handleAlarmRinging(Button *cancelButton, Button *goForwardButton, Button *goBackwardButton, bool *ringingAlarm, long started)
 {
     while (*ringingAlarm)
     {
-        ledcWriteTone(0,880);
+        ledcWriteTone(0, 880);
         delay(100);
         messageDisplay("Alarm", "Take your Medicine..", takeMedicine);
         pooling(goForwardButton, goBackwardButton, cancelButton);
@@ -719,13 +667,13 @@ void handleAlarmRinging(Button *cancelButton, Button *goForwardButton, Button *g
             goForwardButton->numberKeyPresses = 0;
             goBackwardButton->pressed = false;
             goBackwardButton->numberKeyPresses = 0;
-            ledcWriteTone(0,0);
+            ledcWriteTone(0, 0);
             break;
         }
         else if (millis() - started > 60000)
         {
             *ringingAlarm = false;
-            ledcWriteTone(0,0);
+            ledcWriteTone(0, 0);
             break;
         }
     }
@@ -751,7 +699,6 @@ bool handleWarning(DHTData dhtData)
         display.println("All Good :)");
     }
     return warn;
-
 }
 
 void setup()
@@ -770,7 +717,7 @@ void setup()
     setTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     getTime(&timeinfo);
     Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-    loadAlarms(alarms, &preferences);
+    loadAlarms(alarmPointers, &preferences);    // Updated code
     esp_sleep_enable_timer_wakeup(1 * 1000000); // light sleep for 2 seconds
     gpio_wakeup_enable(GPIO_NUM_27, GPIO_INTR_LOW_LEVEL);
     esp_sleep_enable_gpio_wakeup();
@@ -782,15 +729,16 @@ void loop()
     long start = millis();
     measureDHT(&dhtData);
     getTime(&timeinfo);
-    isAlarm(alarms);
-    mainFaceDisplay(timeinfo,dhtData);
+    isAlarm(alarmPointers);
+    mainFaceDisplay(timeinfo, dhtData);
     if (menuButton.pressed && debounce(&menuButton))
     {
         menuButton.pressed = false;
         displayMenu(&selectedFrame, &menu);
         while (!menu.isClosed)
         {
-            bool responce = handleMainMenu(&selectedFrame, &menu, &menuButton, &goForwardButton, &goBackwardButton, &cancelButton);
+            Serial.println("Entering to main menue");
+            bool responce = handleMainMenu(alarmPointers, &offset, &selectedFrame, &menu, &menuButton, &goForwardButton, &goBackwardButton, &cancelButton);
         }
         menu.isClosed = false;
     }
