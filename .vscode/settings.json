@@ -11,6 +11,7 @@
         "vector": "cpp",
         "string_view": "cpp",
         "initializer_list": "cpp",
-        "esp32-hal-timer.h": "c"
+        "esp32-hal-timer.h": "c",
+        "cstddef": "cpp"
     }
 }

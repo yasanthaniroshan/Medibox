@@ -87,7 +87,6 @@ Button goForwardButton = {false, 0, 0};
 Button goBackwardButton = {false, 0, 0};
 Button cancelButton = {false, 0, 0};
 Menu menu = {false, false, false, false, 0};
-
 AlarmTime alarms[3] = {{0, "Alarm-01", 0, 0, false, false, 0, NULL}, {1, "Alarm-02", 0, 0, false, false, 0, NULL}, {2, "Alarm-03", 0, 0, false, false, 0, NULL}};
 AlarmTime offset = {0, "Offset", 5, 30, false, false, 0, NULL};
 
@@ -100,9 +99,10 @@ const int daylightOffset_sec = 0;
 bool ringingAlarm = false;
 int timertime[3] = {0, 0, 0};
 
+bool handleWarning(DHTData dhtData);
 void intializeDisplay(TwoWire *wireInterfaceDisplay, Adafruit_SSD1306 *display);
 void displayText(String text);
-void messageDisplay(String title,String Message, unsigned char bitmap[]);
+void messageDisplay(String title, String Message, unsigned char bitmap[]);
 void DHTInit(DHT *dht);
 void wifiInit(Adafruit_SSD1306 *display);
 void ringAlarm();
@@ -147,7 +147,6 @@ void isAlarm(AlarmTime alarms[])
         {
             alarms[i].isRinging = true;
             ringingAlarm = true;
-            ringAlarm();
             alarms[i].isSet = false;
         }
         else if (alarms[i].isSet && alarms[i].alarmTimeInSeconds > 0)
@@ -172,7 +171,7 @@ void setTime(int gmtOffset_sec, int daylightOffset_sec, const char *ntpServer)
 {
     messageDisplay("Time", "Configuring..", timeConfig);
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    delay(500);
+    delay(350);
     messageDisplay("Time", "Configured", timeConfig);
 }
 
@@ -272,12 +271,12 @@ void displayText(String text)
     display.println(text);
     display.display();
 }
-void messageDisplay(String title,String Message, unsigned char bitmap[])
+void messageDisplay(String title, String Message, unsigned char bitmap[])
 {
     byte title_legth = title.length();
     byte message_legth = Message.length();
-    byte titleStartingX = (title_legth % 2 == 0) ? 64 - (title_legth/2)*6 : 64 - (title_legth/2)*6 - 3;
-    byte messageStartingX = (message_legth % 2 == 0) ? 64 - (message_legth/2)*6 : 64 - (message_legth/2)*6 - 3;
+    byte titleStartingX = (title_legth % 2 == 0) ? 64 - (title_legth / 2) * 6 : 64 - (title_legth / 2) * 6 - 3;
+    byte messageStartingX = (message_legth % 2 == 0) ? 64 - (message_legth / 2) * 6 : 64 - (message_legth / 2) * 6 - 3;
     display.clearDisplay();
     display.setTextSize(1);
     display.drawBitmap(48, 16, bitmap, 32, 32, SSD1306_WHITE);
@@ -291,23 +290,9 @@ void messageDisplay(String title,String Message, unsigned char bitmap[])
 void mainFaceDisplay(tm timeinfo, DHTData dhtData)
 {
     display.clearDisplay();
+    bool warn = handleWarning(dhtData);
     display.setCursor(0, 48);
     display.drawRect(12, 14, 104, 28, SSD1306_WHITE);
-    if (dhtData.temperature >= TEMPURATION_UPPER_LIMIT || dhtData.temperature <= TEMPURATION_LOWER_LIMIT)
-    {
-        display.setCursor(0, 48);
-        display.println("Temperature: " + String(dhtData.temperature) + "C");
-    }
-    if (dhtData.humidity >= HUMIDITY_UPPER_LIMIT || dhtData.humidity <= HUMIDITY_LOWER_LIMIT)
-    {
-        display.setCursor(0, 56);
-        display.println("Humidity: " + String(dhtData.humidity) + "%");
-    }
-    if (dhtData.temperature > TEMPURATION_LOWER_LIMIT && dhtData.temperature < TEMPURATION_UPPER_LIMIT && dhtData.humidity > HUMIDITY_LOWER_LIMIT && dhtData.humidity < HUMIDITY_UPPER_LIMIT)
-    {
-        display.setCursor(31, 52);
-        display.println("All Good :)");
-    }
     display.setCursor(34, 0);
     display.println(&timeinfo, "%d-%m-%Y");
     display.setCursor(16, 20);
@@ -315,7 +300,13 @@ void mainFaceDisplay(tm timeinfo, DHTData dhtData)
     display.println(&timeinfo, "%H:%M:%S");
     display.setTextSize(1);
     display.display();
-}
+    if(warn)
+    {
+        ledcWriteTone(0,3150);
+        delay(200);
+        ledcWriteTone(0,0);
+    }
+    }
 void displayAlarm(byte data, String text)
 {
     display.clearDisplay();
@@ -710,9 +701,57 @@ bool handleMainMenu(SelectedFrame *selectedFrame, Menu *menu, Button *menuButton
     return false;
 }
 
-void ringAlarm()
+
+void handleAlarmRinging(Button *cancelButton, Button *goForwardButton, Button *goBackwardButton, bool *ringingAlarm, long started)
 {
-    digitalWrite(BUZZER, HIGH);
+    while (*ringingAlarm)
+    {
+        ledcWriteTone(0,880);
+        delay(100);
+        messageDisplay("Alarm", "Take your Medicine..", takeMedicine);
+        pooling(goForwardButton, goBackwardButton, cancelButton);
+        if (cancelButton->pressed)
+        {
+            *ringingAlarm = false;
+            cancelButton->pressed = false;
+            cancelButton->numberKeyPresses = 0;
+            goForwardButton->pressed = false;
+            goForwardButton->numberKeyPresses = 0;
+            goBackwardButton->pressed = false;
+            goBackwardButton->numberKeyPresses = 0;
+            ledcWriteTone(0,0);
+            break;
+        }
+        else if (millis() - started > 60000)
+        {
+            *ringingAlarm = false;
+            ledcWriteTone(0,0);
+            break;
+        }
+    }
+}
+bool handleWarning(DHTData dhtData)
+{
+    bool warn = false;
+    if (dhtData.temperature >= TEMPURATION_UPPER_LIMIT || dhtData.temperature <= TEMPURATION_LOWER_LIMIT)
+    {
+        display.setCursor(0, 48);
+        display.println("Temperature: " + String(dhtData.temperature) + "C");
+        warn = true;
+    }
+    if (dhtData.humidity >= HUMIDITY_UPPER_LIMIT || dhtData.humidity <= HUMIDITY_LOWER_LIMIT)
+    {
+        display.setCursor(0, 56);
+        display.println("Humidity: " + String(dhtData.humidity) + "%");
+        warn = true;
+    }
+    if (dhtData.temperature > TEMPURATION_LOWER_LIMIT && dhtData.temperature < TEMPURATION_UPPER_LIMIT && dhtData.humidity > HUMIDITY_LOWER_LIMIT && dhtData.humidity < HUMIDITY_UPPER_LIMIT)
+    {
+        display.setCursor(31, 52);
+        display.println("All Good :)");
+    }
+    return warn;
+
 }
 
 void setup()
@@ -720,7 +759,7 @@ void setup()
     intializeDisplay(&wireInterfaceDisplay, &display);
     Serial.begin(112500);
     pinMode(LED, OUTPUT);
-    pinMode(BUZZER, OUTPUT);
+    ledcAttachPin(BUZZER, 0);
     pinMode(MenuInterruptPin, INPUT_PULLUP);
     pinMode(CancelInterruptPin, INPUT);
     pinMode(GoForwardInterruptPin, INPUT);
@@ -743,8 +782,8 @@ void loop()
     long start = millis();
     measureDHT(&dhtData);
     getTime(&timeinfo);
-    mainFaceDisplay(timeinfo, dhtData);
     isAlarm(alarms);
+    mainFaceDisplay(timeinfo,dhtData);
     if (menuButton.pressed && debounce(&menuButton))
     {
         menuButton.pressed = false;
@@ -755,21 +794,7 @@ void loop()
         }
         menu.isClosed = false;
     }
-    // int alarmID = updateTimerList();
-    // Serial.println("Timer values : " + String(timertime[0]) + " " + String(timertime[1]) + " " + String(timertime[2]));
-    // Serial.println("Alarms time in seconds : " + String(alarms[0].alarmTimeInSeconds) + " " + String(alarms[1].alarmTimeInSeconds) + " " + String(alarms[2].alarmTimeInSeconds));
-    while (ringingAlarm)
-    {
-        pooling(&goForwardButton, &goBackwardButton, &cancelButton);
-        if (cancelButton.pressed)
-        {
-            ringingAlarm = false;
-            cancelButton.pressed = false;
-            cancelButton.numberKeyPresses = 0;
-            digitalWrite(BUZZER, LOW);
-            break;
-        }
-    }
+    handleAlarmRinging(&cancelButton, &goForwardButton, &goBackwardButton, &ringingAlarm, start);
     long end = millis();
     long timeElapsed = end - start;
     Serial.println("Time elapsed : " + String(timeElapsed) + " ms");
