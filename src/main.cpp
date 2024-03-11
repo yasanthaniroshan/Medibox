@@ -38,8 +38,8 @@ Alarm *alarmPointers[3] = {&alarms[0], &alarms[1], &alarms[2]};
 Time offset = {3, "Offset", 5, 30};
 
 // Set ssid and password for the wifi
-const char *ssid = "MSI 8690";
-const char *password = "abcdefgh";
+const char *ssid = "Wokwi-GUEST";
+const char *password = "";
 
 // Set the NTP Server and the GMT and Daylight offset
 const char *ntpServer = "pool.ntp.org";
