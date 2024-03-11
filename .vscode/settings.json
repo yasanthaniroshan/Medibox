@@ -10,6 +10,8 @@
         "unordered_set": "cpp",
         "vector": "cpp",
         "string_view": "cpp",
-        "initializer_list": "cpp"
+        "initializer_list": "cpp",
+        "esp32-hal-timer.h": "c",
+        "cstddef": "cpp"
     }
 }
