@@ -29,7 +29,7 @@
 
 
 // Define the configurations Lower and Upper limits for the temperature 
-#define TEMPURATION_LOWER_LIMIT 24
+#define TEMPURATION_LOWER_LIMIT 20
 #define TEMPURATION_UPPER_LIMIT 32
 
 

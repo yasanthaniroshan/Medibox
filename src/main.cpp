@@ -51,6 +51,9 @@ bool ringingAlarm = false;
 
 // Function Declarations
 
+
+void loadOffsets(Time *offset, Preferences *preferences);
+void saveOffset(Time *offset, Preferences *preferences);
 bool handleWarning(DHTData dhtData);
 void intializeDisplay(TwoWire *wireInterfaceDisplay, Adafruit_SSD1306 *display);
 void messageDisplay(String title, String Message, unsigned char bitmap[]);
@@ -58,12 +61,12 @@ void DHTInit(DHT *dht);
 void wifiInit(Adafruit_SSD1306 *display);
 void ringAlarm();
 void measureDHT(DHTData *dhtData);
-void setTime(int gmtOffset_sec, int daylightOffset_sec, const char *ntpServer);
+void setTime(Time offset, int daylightOffset_sec, const char *ntpServer);
 void intializeDisplay();
 void loadAlarms(Alarm **alarms[], Preferences *preferences);
 void saveAlarm(Alarm *alarm, Preferences *preferences);
 void setAlarm(Alarm *alarm);
-void changeTimeZone(Alarm *time);
+void changeTimeZone(Time *time, Preferences *preferences);
 void displayText(String text);
 void mainFaceDisplay(tm timeinfo, DHTData dhtData);
 void displayAlarm(byte data, String text);
@@ -156,11 +159,12 @@ void wifiInit(Adafruit_SSD1306 *display)
  *
  * @return void
  */
-void setTime(int gmtOffset_sec, int daylightOffset_sec, const char *ntpServer)
+void setTime(Time offset, int daylightOffset_sec, const char *ntpServer)
 {
 
+    int offsetInSeconds = offset.hours * 3600 + offset.minutes * 60;
     messageDisplay("Time", "Configuring..", timeConfig);
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    configTime(offsetInSeconds, daylightOffset_sec, ntpServer);
     delay(350);
     messageDisplay("Time", "Configured", timeConfig);
 }
@@ -207,7 +211,6 @@ void loadAlarms(Alarm *alarms[], Preferences *preferences)
     for (int i = 0; i < 3; ++i)
     {
         preferences->begin(alarms[i]->time->time_name, false);
-
         alarms[i]->time->hours = preferences->getUInt("hour", 0);
         alarms[i]->time->minutes = preferences->getUInt("minute", 0);
         setAlarm(alarms[i]);
@@ -215,6 +218,19 @@ void loadAlarms(Alarm *alarms[], Preferences *preferences)
     }
     delay(350);
     messageDisplay("Alarms", "Synced !", syncing_alarms);
+}
+/**
+ * Loads the offset values from the preferences and assigns them to the given Time object.
+ *
+ * @param offset A pointer to the Time object to store the offset values.
+ * @param preferences A pointer to the Preferences object to retrieve the offset values from.
+ */
+void loadOffsets(Time *offset, Preferences *preferences)
+{
+    preferences->begin(offset->time_name, false);
+    offset->hours = preferences->getUInt("hour", offset->hours);
+    offset->minutes = preferences->getUInt("minute", offset->minutes);
+    preferences->end();
 }
 /**
  * @brief Saves the alarm details to the non-volatile memory.
@@ -232,6 +248,21 @@ void saveAlarm(Alarm *alarm, Preferences *preferences)
     preferences->putUInt("minute", alarm->time->minutes);
     preferences->end();
 }
+
+/**
+ * Saves the offset time to the preferences.
+ * 
+ * @param offset - Pointer to the Time object representing the offset.
+ * @param preferences - Pointer to the Preferences object for storing the offset.
+ */
+void saveOffset(Time *offset, Preferences *preferences)
+{
+    preferences->begin(offset->time_name, false);
+    preferences->putUInt("hour", offset->hours);
+    preferences->putUInt("minute", offset->minutes);
+    preferences->end();
+}
+
 
 /**
  * @brief Sets the alarm time and marks the alarm as set.
@@ -287,7 +318,7 @@ void disableAlarm(Alarm *alarm, Preferences *preferences)
  * 
  * @return void
  */
-void changeTimeZone(Time *time)
+void changeTimeZone(Time *time, Preferences *preferences)
 {
     int offset;
     if (time->hours > -12 && time->hours < 0)
@@ -306,6 +337,7 @@ void changeTimeZone(Time *time)
     {
         offset = time->hours * 3600;
     }
+    saveOffset(time, preferences);
     configTime(offset, 0, ntpServer);
 }
 
@@ -450,7 +482,7 @@ void handleTimeZone(Time *time, Button *menuButton, Button *goForwardButton, But
         adjustTimeZoneMinutes(time, menuButton, goForwardButton, goBackwardButton, cancelButton);
     }
     menu.isSubMenuClosed = true;
-    changeTimeZone(time);
+    changeTimeZone(time, &preferences);
 }
 
 /**
@@ -1048,8 +1080,11 @@ void setup()
     // Initialize the DHT sensor
     DHTInit(&dht);
 
+    // Load the offsets from non-volatile memory
+    loadOffsets(&offset, &preferences);
+
     // Set the time zone and configure the time settings using the NTP server
-    setTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    setTime(offset, daylightOffset_sec, ntpServer);
 
     // Load the alarms from RTC and store in timeinfo
     getTime(&timeinfo);
