@@ -70,6 +70,7 @@ void changeTimeZone(Time *time, Preferences *preferences);
 void displayText(String text);
 void mainFaceDisplay(tm timeinfo, DHTData dhtData);
 void displayAlarm(byte data, String text);
+void displayTimeZone(int data, String text);
 void handleAlarm(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
 void handleTimeZone(Alarm *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
 void adjustAlarmHours(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
@@ -424,6 +425,23 @@ void displayAlarm(byte data, String text)
     display.display();
     display.setTextSize(1);
 }
+
+void displayTimeZone(int data, String text)
+{
+    display.clearDisplay();
+    display.setCursor(45, 2);
+    display.setTextSize(1);
+    display.println("Set " + text);
+    display.setTextSize(3);
+    display.setCursor(0, 26);
+    display.println("+");
+    display.setCursor(55, 26);
+    display.println(data);
+    display.setCursor(110, 26);
+    display.println("-");
+    display.display();
+    display.setTextSize(1);
+}
 /**
  * @brief Handles the alarm configuration process.
  * 
@@ -615,7 +633,7 @@ void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton
     pooling(goForwardButton, goBackwardButton, cancelButton);
     if (goForwardButton->pressed)
     {
-        if (time->hours > -13 && time->hours < 15)
+        if (time->hours >= -13 && time->hours < 15)
         {
             time->hours++;
         }
@@ -623,17 +641,17 @@ void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton
         {
             time->hours = -13;
         }
-        else if (time->hours <= -13)
+        else if (time->hours < -13)
         {
             time->hours = 15;
         }
         goForwardButton->pressed = false;
         goForwardButton->numberKeyPresses = 0;
-        displayAlarm(time->hours, "Hours");
+        displayTimeZone(time->hours, "Hours");
     }
     else if (goBackwardButton->pressed)
     {
-        if (time->hours > -13 && time->hours < 15)
+        if (time->hours > -13 && time->hours <= 15)
         {
             time->hours--;
         }
@@ -641,13 +659,13 @@ void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton
         {
             time->hours = 15;
         }
-        else if (time->hours >= 15)
+        else if (time->hours > 15)
         {
             time->hours = -13;
         }
         goBackwardButton->pressed = false;
         goBackwardButton->numberKeyPresses = 0;
-        displayAlarm(time->hours, "Hours");
+        displayTimeZone(time->hours, "Hours");
     }
     else if (cancelButton->pressed)
     {
@@ -1059,7 +1077,6 @@ bool handleWarning(DHTData dhtData)
 
 void setup()
 {
-
     // Initialize the display
     intializeDisplay(&wireInterfaceDisplay, &display);
 
