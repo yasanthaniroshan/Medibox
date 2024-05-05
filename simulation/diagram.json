@@ -3,14 +3,7 @@
   "author": "Anonymous maker",
   "editor": "wokwi",
   "parts": [
-    {
-      "type": "board-esp32-devkit-c-v4",
-      "id": "esp",
-      "top": -223.6,
-      "left": 72.56,
-      "rotate": 180,
-      "attrs": {}
-    },
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": -220.8, "left": 62.44, "attrs": {} },
     {
       "type": "board-ssd1306",
       "id": "oled1",
@@ -81,15 +74,35 @@
       "top": -84,
       "left": 587.4,
       "attrs": { "volume": "0.1" }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": -212.2,
+      "left": -199.8,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-photoresistor-sensor",
+      "id": "ldr1",
+      "top": 92.9,
+      "left": -91.7,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-photoresistor-sensor",
+      "id": "ldr2",
+      "top": 92.9,
+      "left": -168.5,
+      "rotate": 270,
+      "attrs": {}
     }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
-    [ "btn1:1.l", "esp:27", "green", [ "h-67.2", "v48" ] ],
-    [ "btn2:1.l", "esp:26", "green", [ "h-67.2", "v-19.2", "h-38.4" ] ],
-    [ "btn3:1.l", "esp:25", "green", [ "h-67.2", "v-86.4" ] ],
-    [ "btn4:1.l", "esp:35", "green", [ "h-67.2", "v-144" ] ],
     [ "btn1:1.r", "r1:1", "red", [ "v0" ] ],
     [ "btn2:1.r", "r2:1", "red", [ "v0" ] ],
     [ "btn3:1.r", "r4:1", "red", [ "v0" ] ],
@@ -97,20 +110,33 @@
     [ "r3:2", "r4:2", "red", [ "v0", "h8.4", "v-86.4", "h-9.6" ] ],
     [ "r4:2", "r2:2", "red", [ "v0", "h18", "v-76.8" ] ],
     [ "r2:2", "r1:2", "red", [ "v0", "h18", "v-76.8" ] ],
-    [ "esp:3V3", "r3:2", "red", [ "h9.45", "v153.6", "h259.2", "v-57.6" ] ],
     [ "btn4:2.r", "btn3:2.r", "black", [ "h115.4", "v-86.2", "h-9.6" ] ],
     [ "btn2:2.r", "btn3:2.r", "black", [ "h115.4", "v77" ] ],
     [ "btn1:2.r", "btn2:2.r", "black", [ "h115.4", "v77" ] ],
-    [ "esp:GND.2", "btn4:2.r", "black", [ "v0", "h-9.6", "v163.2", "h393.6", "v-48" ] ],
-    [ "esp:33", "oled1:SDA", "blue", [ "h38.25", "v-144", "h355.2" ] ],
-    [ "esp:32", "oled1:SCL", "violet", [ "h38.25", "v-144", "h345.6" ] ],
     [ "r1:2", "oled1:VCC", "red", [ "v0", "h37.2", "v-48", "h86.4" ] ],
     [ "btn1:2.r", "oled1:GND", "black", [ "h115.4", "v-57.4", "h76.8" ] ],
     [ "dht1:VCC", "r3:2", "red", [ "v28.8" ] ],
     [ "dht1:GND", "btn4:2.r", "black", [ "v0" ] ],
-    [ "esp:15", "dht1:SDA", "orange", [ "v0", "h-19.2", "v316.8", "h470.4" ] ],
     [ "bz1:1", "btn4:2.r", "black", [ "v0" ] ],
-    [ "bz1:2", "esp:5", "gray", [ "v144", "h-461.2", "v0", "h-115.2", "v-268.8" ] ]
+    [ "btn1:1.l", "esp:23", "blue", [ "h0" ] ],
+    [ "btn2:1.l", "esp:19", "blue", [ "h-86.4", "v-19.2" ] ],
+    [ "btn3:1.l", "esp:18", "blue", [ "h-86.4", "v-86.4" ] ],
+    [ "btn4:1.l", "esp:5", "blue", [ "h-86.4", "v-163.2" ] ],
+    [ "esp:21", "oled1:SDA", "violet", [ "h28.8", "v-86.4", "h172.8" ] ],
+    [ "oled1:SCL", "esp:22", "violet", [ "v-9.6", "h0.3", "v-28.8", "h-364.8", "v57.6" ] ],
+    [ "dht1:SDA", "esp:26", "orange", [ "v57.6", "h0.1", "v28.8", "h-480", "v-220.8" ] ],
+    [ "esp:25", "servo1:PWM", "yellow", [ "v0", "h-19.05", "v86.4", "h-153.6" ] ],
+    [ "esp:34", "ldr1:AO", "gray", [ "h-19.05", "v124.8", "h-38.4" ] ],
+    [ "ldr2:AO", "esp:35", "gray", [ "v-67.2", "h114.5", "v-115.2" ] ],
+    [ "ldr2:VCC", "esp:3V3", "red", [ "v-57.6", "h0", "v0", "h0", "v0", "h134.4", "v-172.8" ] ],
+    [ "ldr1:VCC", "esp:3V3", "red", [ "v-57.6", "h57.6", "v-172.8" ] ],
+    [ "ldr2:GND", "esp:GND.1", "black", [ "v-76.8", "h114.8", "v-28.8" ] ],
+    [ "servo1:V+", "esp:3V3", "red", [ "v48", "h153.7", "v-172.8" ] ],
+    [ "servo1:GND", "esp:GND.1", "black", [ "v28.8", "h153.6", "v-28.8" ] ],
+    [ "ldr1:GND", "esp:GND.1", "black", [ "v-76.8", "h38", "v-28.8" ] ],
+    [ "esp:GND.2", "oled1:GND", "black", [ "v-28.8", "h326.4" ] ],
+    [ "oled1:VCC", "esp:3V3", "red", [ "v-38.4", "h-508.65", "v38.4" ] ],
+    [ "esp:32", "bz1:2", "purple", [ "h-19.05", "v288", "h307.2" ] ]
   ],
   "dependencies": {}
 }
