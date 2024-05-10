@@ -3,10 +3,15 @@
 #include <DHT.h>
 #include <Adafruit_SSD1306.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
 #include "time.h"
+#include <Servo.h>
+#include <ArduinoJson.h>
 #include <Preferences.h>
 #include <Bitmaps.h>
 #include <Defintions.h>
+#include <Certificate.h>
 
 // Initialize the MenuOptions Structure to store the menu options (Default is Alarm_01)
 MenuOptions selectedOption = Alarm_01;
@@ -37,20 +42,31 @@ Alarm *alarmPointers[3] = {&alarms[0], &alarms[1], &alarms[2]};
 // Initialize the Time Structure to store the time offset from UTC
 Time offset = {3, "Offset", 5, 30};
 
+/// Initilize the LDRValue Structure ti store the left,right,max values of LDR sensors
+LDRValue ldrvalue = {.leftLDRValue = 0.0, .rightLDRValue = 0.0, .maximumValue = 0.0, .isLeftLDRHigh = false};
+
+// Initialize the Servo Motor Current Angle
+int servoCurrentAngle;
+float minimumAngle = 30.0;
+float controllingFactor = 0.75;
+
 // Set ssid and password for the wifi
-const char *ssid = "Wokwi-GUEST";
-const char *password = "";
+const char *ssid = "Redmi 12";
+const char *password = "1234567890";
 
 // Set the NTP Server and the GMT and Daylight offset
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 19800;
 const int daylightOffset_sec = 0;
 
+// Set mqtt user credentials for the MQTT Connection
+const char *mqtt_username = "Esp_client";
+const char *mqtt_password = "Sample@123";
+
 // Declare global variable ringingAlarm to store the state of the alarm
 bool ringingAlarm = false;
 
 // Function Declarations
-
 
 void loadOffsets(Time *offset, Preferences *preferences);
 void saveOffset(Time *offset, Preferences *preferences);
@@ -85,6 +101,15 @@ void pooling(Button *goForwardButton, Button *goBackwardButton, Button *cancelBu
 void handleMenu(Alarm *alarms[], Time *offset, MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
 bool handleMainMenu(Alarm *alarms[], Time *offset, SelectedFrame *selectedFrame, Menu *menu, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton);
 
+void servoInit(Servo *servo);
+void syncTime();
+void callback(char *topic, byte *payload, unsigned int length);
+void reconnect();
+void readLDRValues(LDRValue *ldrvalue);
+float calculateLuxValue(float sensorValue);
+JsonDocument publishData(LDRValue ldrvalue, JsonDocument doc, DHTData dhtData);
+void handleServoMotor(String message, Servo *servo);
+
 // Initialize the time structure to store the time
 struct tm timeinfo;
 
@@ -94,6 +119,15 @@ DHTData dhtData;
 // Initialize the Preferences structure to store the alarm data
 Preferences preferences;
 
+// Initialize the WiFiClientSecure to establish a secure connection
+WiFiClientSecure espClient;
+
+// Initialize the PubSubClient to handle the MQTT connection
+PubSubClient client(espClient);
+
+// Initialize the Servo object to control the servo motor
+Servo servo;
+
 // Define the I2C pins for the OLED Display
 TwoWire wireInterfaceDisplay = TwoWire(0);
 
@@ -102,6 +136,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HIEGHT, &wireInterfaceDisplay, OLE
 
 // Initialize the DHT sensor object
 DHT dht(DHTPIN, DHTTYPE);
+
+JsonDocument doc;
 
 /**
  * @brief
@@ -252,7 +288,7 @@ void saveAlarm(Alarm *alarm, Preferences *preferences)
 
 /**
  * Saves the offset time to the preferences.
- * 
+ *
  * @param offset - Pointer to the Time object representing the offset.
  * @param preferences - Pointer to the Preferences object for storing the offset.
  */
@@ -263,7 +299,6 @@ void saveOffset(Time *offset, Preferences *preferences)
     preferences->putUInt("minute", offset->minutes);
     preferences->end();
 }
-
 
 /**
  * @brief Sets the alarm time and marks the alarm as set.
@@ -311,12 +346,12 @@ void disableAlarm(Alarm *alarm, Preferences *preferences)
 
 /**
  * @brief Changes the time zone of the given Time object.
- * 
+ *
  * The function calculates the offset based on the hours and minutes of the Time object,
  * and then calls the `configTime` function to update the time zone.
  *
  * @param time A pointer to the Time object whose time zone needs to be changed.
- * 
+ *
  * @return void
  */
 void changeTimeZone(Time *time, Preferences *preferences)
@@ -343,13 +378,13 @@ void changeTimeZone(Time *time, Preferences *preferences)
 }
 
 /**
- * 
+ *
  * @brief Displays a message on the screen with a given title, message, and bitmap.
- * 
+ *
  * @param title The title of the message.
  * @param Message The message to be displayed.
  * @param bitmap An array of unsigned characters representing the bitmap to be displayed.
- * 
+ *
  * @return void
  */
 void messageDisplay(String title, String Message, unsigned char bitmap[])
@@ -370,14 +405,14 @@ void messageDisplay(String title, String Message, unsigned char bitmap[])
 
 /**
  * @brief Displays the main face of the device with the current time and warning status.
- * 
+ *
  * This function clears the display and then displays the current date and time on the OLED display.
  * It also checks for any warning conditions based on the DHTData and displays a warning message if necessary.
  * If a warning condition is detected, it activates an LED tone for a short duration.
- * 
+ *
  * @param timeinfo The current time information.
  * @param dhtData The data from the DHT sensor.
- * 
+ *
  * @return void
  */
 void mainFaceDisplay(tm timeinfo, DHTData dhtData)
@@ -403,10 +438,10 @@ void mainFaceDisplay(tm timeinfo, DHTData dhtData)
 
 /**
  * @brief Displays the given text on the OLED display.
- * 
+ *
  * @param data The alarm data to be displayed.
  * @param text The text to be displayed along with the alarm.
- * 
+ *
  * @return void
  */
 void displayAlarm(byte data, String text)
@@ -426,6 +461,14 @@ void displayAlarm(byte data, String text)
     display.setTextSize(1);
 }
 
+/**
+ * @brief Displays the given text on the OLED display.
+ *
+ * @param data The time zone data to be displayed.
+ * @param text The text to be displayed.
+ *
+ * @return void
+ */
 void displayTimeZone(int data, String text)
 {
     display.clearDisplay();
@@ -444,15 +487,15 @@ void displayTimeZone(int data, String text)
 }
 /**
  * @brief Handles the alarm configuration process.
- * 
+ *
  * This function handles the alarm configuration process by displaying the current alarm time and allowing the user to adjust it.
- * 
+ *
  * @param alarm The alarm object to be configured.
  * @param menuButton The button object used to navigate the menu.
  * @param goForwardButton The button object used to move forward in the menu.
  * @param goBackwardButton The button object used to move backward in the menu.
  * @param cancelButton The button object used to cancel the configuration process.
- * 
+ *
  * @return void
  */
 void handleAlarm(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -475,15 +518,15 @@ void handleAlarm(Alarm *alarm, Button *menuButton, Button *goForwardButton, Butt
 
 /**
  * @brief Handles the time zone configuration process.
- * 
+ *
  * This function handles the time zone configuration process by displaying the current time zone and allowing the user to adjust it.
- * 
+ *
  * @param time The time object to be configured.
  * @param menuButton The button object used to navigate the menu.
  * @param goForwardButton The button object used to move forward in the menu.
  * @param goBackwardButton The button object used to move backward in the menu.
  * @param cancelButton The button object used to cancel the configuration process.
- * 
+ *
  * @return void
  */
 void handleTimeZone(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -505,15 +548,15 @@ void handleTimeZone(Time *time, Button *menuButton, Button *goForwardButton, But
 
 /**
  * @brief Adjusts the alarm hours based on the button press event.
- * 
+ *
  * This function adjusts the alarm hours based on the button press event.
- * 
+ *
  * @param alarm The alarm object to be configured.
  * @param menuButton The button object used to navigate the menu.
  * @param goForwardButton The button object used to increase the hours.
  * @param goBackwardButton The button object used to decrease the hours.
  * @param cancelButton The button object used to exit from the editing
- * 
+ *
  * @return void
  */
 void adjustAlarmHours(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -561,16 +604,15 @@ void adjustAlarmHours(Alarm *alarm, Button *menuButton, Button *goForwardButton,
     }
 }
 
-
 /**
  * @brief Adjusts the alarm minutes based on the button presses.
- *  
+ *
  * @param alarm The alarm object to adjust.
  * @param menuButton The menu button object.
  * @param goForwardButton The go forward button object.
  * @param goBackwardButton The go backward button object.
  * @param cancelButton The cancel button object.
- * 
+ *
  * @return void
  */
 void adjustAlarmMinutes(Alarm *alarm, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -619,13 +661,13 @@ void adjustAlarmMinutes(Alarm *alarm, Button *menuButton, Button *goForwardButto
 }
 /**
  * @brief Adjusts the time zone hours based on the button inputs.
- * 
+ *
  * @param time              A pointer to the Time object representing the current time.
  * @param menuButton        A pointer to the Menu Button object.
  * @param goForwardButton   A pointer to the Go Forward Button object.
  * @param goBackwardButton  A pointer to the Go Backward Button object.
  * @param cancelButton     A pointer to the Cancel Button object.
- * 
+ *
  * @return void
  */
 void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -682,13 +724,13 @@ void adjustTimeZoneHours(Time *time, Button *menuButton, Button *goForwardButton
 }
 /**
  * @brief Adjusts the time zone minutes based on the button inputs.
- * 
+ *
  * @param time              A pointer to the Time object representing the current time.
  * @param menuButton        A pointer to the Menu Button object.
  * @param goForwardButton   A pointer to the Go Forward Button object.
  * @param goBackwardButton  A pointer to the Go Backward Button object.
  * @param cancelButton     A pointer to the Cancel Button object.
- * 
+ *
  * @return void
  */
 void adjustTimeZoneMinutes(Time *time, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -735,12 +777,11 @@ void adjustTimeZoneMinutes(Time *time, Button *menuButton, Button *goForwardButt
         menuButton->numberKeyPresses = 0;
     }
 }
-
 /**
  * @brief Handles the menu selection and navigation.
- * 
+ *
  * This function handles the menu selection and navigation based on the button press events.
- * 
+ *
  * @param alarms An array of pointers to Alarm objects.
  * @param offset A pointer to the Time object representing the time offset from UTC.
  * @param selectedOption The selected menu option.
@@ -748,7 +789,7 @@ void adjustTimeZoneMinutes(Time *time, Button *menuButton, Button *goForwardButt
  * @param goForwardButton The button object used to move forward in the menu.
  * @param goBackwardButton The button object used to move backward in the menu.
  * @param cancelButton The button object used to cancel the menu selection.
- * 
+ *
  * @return void
  */
 void handleMenu(Alarm *alarms[], Time *offset, MenuOptions selectedOption, Button *menuButton, Button *goForwardButton, Button *goBackwardButton, Button *cancelButton)
@@ -785,9 +826,9 @@ void handleMenu(Alarm *alarms[], Time *offset, MenuOptions selectedOption, Butto
 
 /**
  * @brief Initializes the DHT sensor.
- * 
+ *
  * @param dht A pointer to the DHT sensor object.
- * 
+ *
  * @return void
  */
 void DHTInit(DHT *dht)
@@ -801,14 +842,13 @@ void DHTInit(DHT *dht)
 
 /**
  * @brief Measures the temperature and humidity using the DHT sensor.
- * 
+ *
  * This function measures the temperature and humidity using the DHT sensor and stores the values in the given DHTData object.
- * 
+ *
  * @param dhtData A pointer to the DHTData object to store the temperature and humidity values.
- * 
+ *
  * @return void
  */
-
 
 void measureDHT(DHTData *dhtData)
 {
@@ -824,9 +864,9 @@ void measureDHT(DHTData *dhtData)
 
 /**
  * @brief Gets the current time and stores it in the given timeinfo structure.
- * 
+ *
  * @param timeinfo A pointer to the tm structure to store the current time.
- * 
+ *
  * @return void
  */
 void getTime(tm *timeinfo)
@@ -837,17 +877,16 @@ void getTime(tm *timeinfo)
     }
 }
 
-
 /**
  * @brief Interrupt service routine for the menu button.
- * 
+ *
  * This function is called when the menu button interrupt is triggered.
  * It updates the `millisPressed` variable of the `menuButton` object with the current millis() value,
  * and sets the `pressed` flag to true.
- * 
+ *
  * @note This function is marked with the `IRAM_ATTR` attribute to ensure that it is placed in the
  * IRAM (instruction RAM) section of the memory, which allows for faster execution.
- * 
+ *
  * @return void
  */
 void IRAM_ATTR menuISR()
@@ -858,7 +897,7 @@ void IRAM_ATTR menuISR()
 
 /**
  * @brief Checks if a button press is debounced.
- * 
+ *
  * @param button A pointer to the Button object to check.
  * @return True if the button press is debounced, false otherwise.
  */
@@ -873,10 +912,10 @@ bool debounce(Button *button)
 
 /**
  * @brief Displays the menu on the OLED display.
- * 
+ *
  * @param selectedFrame A pointer to the SelectedFrame object representing the selected frame.
  * @param menu A pointer to the Menu object representing the menu state.
- * 
+ *
  * @return void
  */
 void displayMenu(SelectedFrame *selectedFrame, Menu *menu)
@@ -901,13 +940,13 @@ void displayMenu(SelectedFrame *selectedFrame, Menu *menu)
 
 /**
  * @brief Pools the button inputs and updates the button state.
- * 
+ *
  * This function pools the button inputs and updates the button state based on the input.
- * 
+ *
  * @param goForwardButton A pointer to the Go Forward Button object.
  * @param goBackwardButton A pointer to the Go Backward Button object.
  * @param cancelButton A pointer to the Cancel Button object.
- * 
+ *
  * @return void
  */
 
@@ -933,9 +972,9 @@ void pooling(Button *goForwardButton, Button *goBackwardButton, Button *cancelBu
 
 /**
  * @brief Handles the main menu navigation and selection.
- * 
+ *
  * This function handles the main menu navigation and selection based on the button press events.
- * 
+ *
  * @param alarms An array of pointers to Alarm objects.
  * @param offset A pointer to the Time object representing the time offset from UTC.
  * @param selectedFrame A pointer to the SelectedFrame object representing the selected frame.
@@ -944,7 +983,7 @@ void pooling(Button *goForwardButton, Button *goBackwardButton, Button *cancelBu
  * @param goForwardButton The button object used to move forward in the menu.
  * @param goBackwardButton The button object used to move backward in the menu.
  * @param cancelButton The button object used to cancel the menu selection.
- * 
+ *
  * @return True if the main menu is closed, false otherwise.
  */
 
@@ -1000,18 +1039,17 @@ bool handleMainMenu(Alarm *alarms[], Time *offset, SelectedFrame *selectedFrame,
     return false;
 }
 
-
 /**
  * @brief Handles the alarm ringing process.
- * 
+ *
  * This function handles the alarm ringing process by displaying the alarm message and allowing the user to cancel the alarm.
- * 
+ *
  * @param cancelButton The button object used to cancel the alarm.
  * @param goForwardButton The button object used to move forward in the menu.
  * @param goBackwardButton The button object used to move backward in the menu.
  * @param ringingAlarm The flag indicating if an alarm is ringing.
  * @param started The time when the alarm started ringing.
- * 
+ *
  * @return void
  */
 void handleAlarmRinging(Button *cancelButton, Button *goForwardButton, Button *goBackwardButton, bool *ringingAlarm, long started)
@@ -1045,11 +1083,11 @@ void handleAlarmRinging(Button *cancelButton, Button *goForwardButton, Button *g
 
 /**
  * @brief Handles the warning conditions based on the DHT sensor data.
- * 
+ *
  * This function checks for any warning conditions based on the DHT sensor data and displays a warning message if necessary.
- * 
+ *
  * @param dhtData A pointer to the DHTData object representing the DHT sensor data.
- * 
+ *
  * @return True if a warning condition is detected, false otherwise.
  */
 bool handleWarning(DHTData dhtData)
@@ -1075,18 +1113,224 @@ bool handleWarning(DHTData dhtData)
     return warn;
 }
 
+/**
+ * @brief Initializes the Servo motor.
+ *
+ * @param servo A pointer to the Servo object representing the servo motor.
+ *
+ * @return void
+ */
+void servoInit(Servo *servo)
+{
+    servo->attach(SERVO_MOTOR_PIN);
+    servo->write(0);
+    servoCurrentAngle = 0;
+    messageDisplay("Servo", "Motor Initialized", wifi);
+    delay(350);
+}
+
+/**
+ * @brief Callback function that is called when a message is received on a subscribed topic.
+ *
+ * @param topic The topic on which the message is received.
+ * @param payload The payload of the received message.
+ * @param length The length of the payload.
+ *
+ * @return void
+ */
+void callback(char *topic, byte *payload, unsigned int length)
+{
+    String incommingMessage = "";
+    for (int i = 0; i < length; i++)
+        incommingMessage += (char)payload[i];
+    String topic_Str = String(topic);
+    if (topic_Str == SERVO_TOPIC)
+    {
+        handleServoMotor(incommingMessage, &servo);
+    }
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(100);
+    digitalWrite(LED_BUILTIN, LOW);
+}
+
+/**
+ * @brief Attempts to reconnect to the MQTT broker if the client is not connected.
+ *
+ * This function is responsible for establishing a connection with the MQTT broker
+ * if the client is not already connected. It continuously tries to connect until
+ * a successful connection is established. If the connection fails, it waits for
+ * 5 seconds before retrying.
+ *
+ * @note This function assumes that the `client` object is already defined and
+ * initialized with the necessary MQTT client settings.
+ *
+ * @return void
+ */
+void reconnect()
+{
+    while (!client.connected())
+    {
+        if (client.connect(MQTT_CLIENT_ID, mqtt_username, mqtt_password))
+        {
+            client.subscribe(SERVO_TOPIC);
+        }
+    }
+    client.publish(CONFIGURATION_TOPIC, MQTT_CLIENT_ID);
+}
+
+/**
+ * @brief Reads the LDR values from the left and right LDR pins and calculates the maximum value.
+ *
+ * @param ldrvalue Pointer to the LDRValue struct where the calculated values will be stored.
+ * @return true if the LDR values are successfully read and calculated, false otherwise.
+ */
+void readLDRValues(LDRValue *ldrvalue)
+{
+    try
+    {
+        ldrvalue->leftLDRValue = calculateLuxValue(analogRead(LDR_LEFT_PIN));
+        ldrvalue->rightLDRValue = calculateLuxValue(analogRead(LDR_RIGHT_PIN));
+        if (ldrvalue->leftLDRValue > ldrvalue->rightLDRValue)
+        {
+            ldrvalue->maximumValue = roundf(ldrvalue->leftLDRValue * 1000.0) / 1000.0;
+            ldrvalue->isLeftLDRHigh = true;
+        }
+        else if (ldrvalue->leftLDRValue <= ldrvalue->rightLDRValue)
+        {
+            ldrvalue->maximumValue = roundf(ldrvalue->rightLDRValue * 1000) / 1000.0;
+            ldrvalue->isLeftLDRHigh = false;
+        }
+    }
+    catch (const std::exception &e)
+    {
+    }
+}
+
+/**
+ * Calculates the lux value based on the sensor value.
+ *
+ * @param sensorValue The sensor value used to calculate the lux value.
+ * @return The calculated lux value.
+ */
+float calculateLuxValue(float sensorValue)
+{
+    float voltage = sensorValue / 4096.0 * 3.3;
+    float resistance = 10000 * voltage / (3.3 - voltage);
+    float lux = pow(RL10 * 1e3 * pow(10, GAMMA) / resistance, (1 / GAMMA));
+    if (lux >= 10000)
+        return 1;
+    return lux / 10000;
+}
+
+/**
+ * @brief Publishes the LDR values to the MQTT broker.
+ *
+ * This function publishes the maximum LDR value and the status of the left LDR to the MQTT broker.
+ *
+ * @param ldrvalue The LDRValue object containing the calculated values.
+ *
+ * @return void
+ */
+JsonDocument publishData(LDRValue ldrvalue, JsonDocument doc, DHTData dhtData)
+{
+    char buffer[256];
+    bool maxldrvalue = (doc["Max_LDR_Val"].as<float>() + 0.02 < ldrvalue.maximumValue) || (doc["Max_LDR_Val"].as<float>() - 0.02 > ldrvalue.maximumValue);
+    bool isleftLdr = doc["Is_Left_LDR_High"].as<bool>() != ldrvalue.isLeftLDRHigh;
+    bool tempurature = (doc["Tempurature"].as<float>() + 0.1 < dhtData.temperature) || (doc["Tempurature"].as<float>() - 0.1 > dhtData.temperature);
+    bool humidity = (doc["Humidity"].as<float>() + 0.1 < dhtData.humidity) || (doc["Humidity"].as<float>() - 0.1 > dhtData.humidity);
+
+    doc["Max_LDR_Val"] = ldrvalue.maximumValue;
+    doc["Is_Left_LDR_High"] = ldrvalue.isLeftLDRHigh;
+    doc["Tempurature"] = dhtData.temperature;
+    doc["Humidity"] = dhtData.humidity;
+
+    if (maxldrvalue || isleftLdr || tempurature || humidity)
+    {
+        serializeJson(doc, buffer);
+        client.publish(LDR_TOPIC, buffer);
+    }
+    return doc;
+}
+
+/**
+ * @brief Handles the servo motor control based on the received message.
+ *
+ * This function handles the servo motor control based on the received message.
+ * It parses the message to extract the minimum angle, controlling factor, and other parameters.
+ * It then calculates the angle based on the LDR values and the controlling factor.
+ * The calculated angle is used to control the servo motor position.
+ *
+ * @param message The message received from the MQTT broker.
+ *
+ * @return void
+ */
+void handleServoMotor(String message, Servo *servo)
+{
+    JsonDocument doc;
+    deserializeJson(doc, message);
+    if (doc.containsKey("Minimum_Angle"))
+    {
+        minimumAngle = doc["Minimum_Angle"];
+    }
+    if (doc.containsKey("Controlling_Factor"))
+    {
+        controllingFactor = doc["Controlling_Factor"];
+    }
+    float D;
+    readLDRValues(&ldrvalue);
+    float maxIntensity = ldrvalue.maximumValue;
+    if (ldrvalue.isLeftLDRHigh)
+    {
+        D = 1.5;
+    }
+    else
+    {
+        D = 0.5;
+    }
+    float angle = (minimumAngle * D + (180 - minimumAngle) * controllingFactor * maxIntensity);
+    if (angle > 180)
+    {
+        angle = 180;
+    }
+    int angleInt = round(angle);
+    if (angleInt > servoCurrentAngle)
+    {
+        servo->write(20);
+
+        for (int i = servoCurrentAngle; i <= angleInt; i++)
+        {
+            servo->write(i);
+            delay(15);
+        }
+    }
+    else if (angleInt < servoCurrentAngle)
+    {
+        for (int i = servoCurrentAngle; i >= angleInt; i--)
+        {
+            servo->write(i);
+            delay(15);
+        }
+    }
+    servoCurrentAngle = angleInt;
+}
+
 void setup()
 {
     // Initialize the display
     intializeDisplay(&wireInterfaceDisplay, &display);
 
-    //Define the pins for the buttons and the buzzer
+    // Define the pins for the buttons, buzzer and the LDR sensors
     pinMode(LED, OUTPUT);
     ledcAttachPin(BUZZER, 0);
     pinMode(MenuInterruptPin, INPUT_PULLUP);
     pinMode(CancelInterruptPin, INPUT);
     pinMode(GoForwardInterruptPin, INPUT);
     pinMode(GoBackwardInterruptPin, INPUT);
+    pinMode(LDR_LEFT_PIN, INPUT);
+    pinMode(LDR_RIGHT_PIN, INPUT);
+
+    // Attach the servo motor to the servo object
+    servoInit(&servo);
 
     // Attach the interrupt service routine for the menu button
     attachInterrupt(MenuInterruptPin, menuISR, RISING);
@@ -1109,23 +1353,32 @@ void setup()
     // Load the alarms from non-volatile memory
     loadAlarms(alarmPointers, &preferences);
 
-    // Set the wake up time for the ESP32 using timer
-    esp_sleep_enable_timer_wakeup(1 * 1000000);
+    // Set the root certificate for the ESP32
+    espClient.setCACert(root_ca);
 
-    // Set the wake up precedure for the ESP32 using GPIO
-    gpio_wakeup_enable(GPIO_NUM_27, GPIO_INTR_LOW_LEVEL);
+    // Set the MQTT server and port
+    client.setServer(MQTT_SERVER, MQTT_PORT);
 
-    // Enable the GPIO wake up
-    esp_sleep_enable_gpio_wakeup();
+    // Attach the callback function for the MQTT client
+    client.setCallback(callback);
 
-    // Enter the light sleep mode
-    esp_light_sleep_start();
+    // // // Set the wake up time for the ESP32 using timer
+    // esp_sleep_enable_timer_wakeup(1 * 1000000);
+
+    // // // Set the wake up precedure for the ESP32 using GPIO
+    // gpio_wakeup_enable(GPIO_NUM_23, GPIO_INTR_LOW_LEVEL);
+
+    // // // Enable the GPIO wake up
+    // esp_sleep_enable_gpio_wakeup();
+
+    // // // Enter the light sleep mode
+    // esp_light_sleep_start();
 }
 
 void loop()
 {
 
-    //get the current time since device booted up 
+    // get the current time since device booted up
     long start = millis();
 
     // Measure the temperature and humidity using the DHT sensor
@@ -1152,7 +1405,7 @@ void loop()
         // wait for the menu to be closed
         while (!menu.isClosed)
         {
-            //Handle the main menu navigation and selection
+            // Handle the main menu navigation and selection
             bool responce = handleMainMenu(alarmPointers, &offset, &selectedFrame, &menu, &menuButton, &goForwardButton, &goBackwardButton, &cancelButton);
         }
 
@@ -1163,15 +1416,33 @@ void loop()
     // Handle the alarm ringing process
     handleAlarmRinging(&cancelButton, &goForwardButton, &goBackwardButton, &ringingAlarm, start);
 
+    readLDRValues(&ldrvalue);
+    doc = publishData(ldrvalue, doc, dhtData);
+
+    if (!client.connected())
+    {
+        reconnect();
+    }
+    client.loop();
+
     // get the time elapsed since the device booted up
     long end = millis();
 
     // calculate the time elapsed
-    long timeElapsed = end - start;
+    int timeElapsed = abs(end - start);
 
-    // Set the wake up time for the ESP32 using timer
-    esp_sleep_enable_timer_wakeup(1 * 1000000 - timeElapsed * 1000);
+    if (timeElapsed < 950)
+    {
+        delay(950 - timeElapsed);
+    }
+    else
+    {
+        delay(950);
+    }
 
-    // Enter the light sleep mode
-    esp_light_sleep_start();
+    // // // Set the wake up time for the ESP32 using timer
+    // esp_sleep_enable_timer_wakeup(1 * 950000 - timeElapsed * 1000);
+
+    // // // Enter the light sleep mode
+    // esp_light_sleep_start();
 }
