@@ -1151,7 +1151,6 @@ void callback(char *topic, byte *payload, unsigned int length)
     digitalWrite(LED_BUILTIN, HIGH);
     delay(100);
     digitalWrite(LED_BUILTIN, LOW);
-    Serial.println("Message arrived [" + String(topic) + "]" + incommingMessage);
 }
 
 /**
@@ -1171,19 +1170,9 @@ void reconnect()
 {
     while (!client.connected())
     {
-        Serial.print("Attempting MQTT connection...");
         if (client.connect(MQTT_CLIENT_ID, mqtt_username, mqtt_password))
         {
-            Serial.println("connected");
-            // client.subscribe(LDR_TOPIC);
-            // client.subscribe(CONFIGURATION_TOPIC);
             client.subscribe(SERVO_TOPIC);
-        }
-        else
-        {
-            Serial.print("failed, rc=");
-            Serial.print(client.state());
-            Serial.println(" try again in 5 seconds"); // Wait 5 seconds before retrying
         }
     }
     client.publish(CONFIGURATION_TOPIC, MQTT_CLIENT_ID);
@@ -1257,7 +1246,6 @@ JsonDocument publishData(LDRValue ldrvalue, JsonDocument doc, DHTData dhtData)
 
     if (maxldrvalue || isleftLdr || tempurature || humidity)
     {
-        Serial.println("Data has been changed !");
         serializeJson(doc, buffer);
         client.publish(LDR_TOPIC, buffer);
     }
@@ -1288,8 +1276,6 @@ void handleServoMotor(String message, Servo *servo)
     {
         controllingFactor = doc["Controlling_Factor"];
     }
-    Serial.println("Minimum Angle : " + String(minimumAngle));
-    Serial.println("Controlling Factor : " + String(controllingFactor));
     float D;
     readLDRValues(&ldrvalue);
     float maxIntensity = ldrvalue.maximumValue;
@@ -1309,22 +1295,16 @@ void handleServoMotor(String message, Servo *servo)
     int angleInt = round(angle);
     if (angleInt > servoCurrentAngle)
     {
-        Serial.println("Rotataion Direction : Clockwise");
         servo->write(20);
 
         for (int i = servoCurrentAngle; i <= angleInt; i++)
         {
-            Serial.println("Servo Current Angle : " + String(i));
             servo->write(i);
             delay(15);
         }
     }
     else if (angleInt < servoCurrentAngle)
     {
-
-        Serial.println("Servo Current Angle : " + String(servoCurrentAngle));
-        Serial.println("Angle Int : " + String(angleInt));
-        Serial.println("Rotataion Direction : Anti-Clockwise");
         for (int i = servoCurrentAngle; i >= angleInt; i--)
         {
             servo->write(i);
@@ -1332,12 +1312,10 @@ void handleServoMotor(String message, Servo *servo)
         }
     }
     servoCurrentAngle = angleInt;
-    Serial.println("Servo Angle : " + String(servoCurrentAngle));
 }
 
 void setup()
 {
-    Serial.begin(112500);
     // Initialize the display
     intializeDisplay(&wireInterfaceDisplay, &display);
 
