@@ -148,5 +148,7 @@ For detailed specifications and pin mappings of these hardware components, pleas
 
 ## License
 
+This project was developed as the Semester 4 Project in the Module `EN2853 - Embedded Systems & Applications` ENTC, UoM.
+
 [MIT](https://choosealicense.com/licenses/mit/)
 
