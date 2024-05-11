@@ -4,7 +4,7 @@
 
 ### ESP32 Development Board
 
-![ESP32](/Design/Esp32.jpg =500x)
+![ESP32](/Design/Esp32.jpg)
 
 **Description:**
 The ESP32 development board serves as the central processing unit of the MediBox system, responsible for executing the embedded software, controlling peripheral devices, and managing communication with the MQTT broker.
@@ -36,7 +36,7 @@ The ESP32 development board serves as the central processing unit of the MediBox
 
 ### OLED Display (SSD1306)
 
-![OLED](/Design/ssd1306.jpeg =500x)
+![OLED](/Design/ssd1306.jpeg)
 
 **Description:**
 The OLED display provides a visual interface for the MediBox system, displaying the current time, date, sensor readings, alarm status, and user menus.
@@ -68,7 +68,7 @@ The OLED display provides a visual interface for the MediBox system, displaying 
 
 ### Buzzer
 
-![Buzzer](/Design/Buzzer.jpeg =500x)
+![Buzzer](/Design/Buzzer.jpeg)
 
 **Description:**
 The buzzer serves as an audible alarm indicator, notifying users when a medication alarm is triggered.
@@ -94,7 +94,7 @@ The buzzer serves as an audible alarm indicator, notifying users when a medicati
 
 ### Push Buttons
 
-![Push Buttons](/Design/push_button.jpeg =500x)
+![Push Buttons](/Design/push_button.jpeg)
 
 **Description:**
 The push buttons provide user input for navigating menus, configuring settings, and interacting with the MediBox system.
@@ -125,7 +125,7 @@ The push buttons provide user input for navigating menus, configuring settings, 
 
 ### Light Dependent Resistors (LDRs)
 
-![LDRs](/Design/ldr.jpeg =500x)
+![LDRs](/Design/ldr.jpeg)
 
 **Description:**
 The LDRs measure ambient light intensity, providing data for adjusting the shaded sliding window position based on user-defined parameters for different medicines.
