@@ -82,7 +82,8 @@ The hardware components of the MediBox system play a crucial role in its proper 
 
 6. Servo Motor: The servo motor controls the movement of the shaded sliding window based on the input from the LDRs and user-defined parameters.
 
-For detailed specifications and pin mappings of these hardware components, please refer to the [Hardware Component Specification document](Docs/Hardware/Hardware_Component_Specification.md).
+> [!NOTE]
+> For detailed specifications and pin mappings of these hardware components, please refer to the [Hardware Component Specification document](Docs/Hardware/Hardware_Component_Specification.md).
 
 > [!WARNING]
 > Hardware component change will be affect for the change in configuations
