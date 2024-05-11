@@ -10,6 +10,10 @@ The MediBox Embedded Software Project aims to develop a smart pharmaceutical sto
 
 The MediBox system consists of hardware components including an **OLED screen**, **buzzer**, **push buttons**, **Light Dependent Resistors (LDRs)**, and a **servo motor**. The software components include embedded software for hardware control, NTP client for time synchronization, alarm management system, temperature/humidity monitoring, light intensity monitoring, and a user interface for configuration and interaction.
 
+## Prototype Overview
+
+ ![MediBox Prototype](Design/Medibox.png)
+
 ## Functionalities
 
 The software provides the following functionalities:
@@ -58,8 +62,30 @@ The MediBox software utilizes a modular architecture, dividing the system into d
 
 This modular architecture ensures clear separation of concerns, enhances maintainability, and allows for future expansion of functionalities and integration of additional components.
 
-> [!NOTE]
+> [!TIP]
 > Full Documentation about Softaware Architecture can be found [here](Docs/Software/Softaware_Architecture.md)
+
+## Hardware Components
+
+These hardware components are essential for the proper functioning of the MediBox system.
+The hardware components of the MediBox system play a crucial role in its proper functioning. These components include:
+
+1. ESP32 Development Board: This board serves as the main controller for the system, providing the necessary processing power and connectivity options.
+
+2. OLED Display: The OLED display is used to provide visual feedback to the user, showing information such as the current time, alarm notifications, and system status.
+
+3. Buzzer: The buzzer is responsible for generating audible alarms when medication reminders are triggered, ensuring that users are alerted to take their medication.
+
+4. Push Buttons: The push buttons allow users to interact with the system, enabling them to navigate through menus, set alarms, and acknowledge notifications.
+
+5. Light Dependent Resistors (LDRs): LDRs are used to monitor the ambient light intensity. This information is used to adjust the position of the shaded sliding window, ensuring that medications are stored in optimal conditions.
+
+6. Servo Motor: The servo motor controls the movement of the shaded sliding window based on the input from the LDRs and user-defined parameters.
+
+For detailed specifications and pin mappings of these hardware components, please refer to the [Hardware Component Specification document](Docs/Hardware/Hardware_Component_Specification.md).
+
+> [!WARNING]
+> Hardware component change will be affect for the change in configuations
 
 ## Requirements
 
@@ -73,17 +99,20 @@ This modular architecture ensures clear separation of concerns, enhances maintai
 
 2. Software Components
 
-    - [PlatformIO](https://platformio.org/)
+    - [PlatformIO](https://platformio.org/) 
     - [Node-RED](https://nodered.org/)
     - [MQTT Broker](https://mosquitto.org/)
     - [VSCode](https://code.visualstudio.com/)
+
+    ![PlatformIo](https://img.shields.io/badge/PlatformIO-5.2.0-blue) ![Node-RED](https://img.shields.io/badge/Node--RED-2.1.3-red) ![MQTT](https://img.shields.io/badge/MQTT-5.1.3-orange) ![VSCode](https://img.shields.io/badge/VSCode-1.60.2-green)
+
 
 ## Installation
 
 1. Hardware Installation
 
     - Connect the components as given in the Schemetic Diagram
-    [Schemetic Diagram](Design/Medibox.png)
+    [Schemetic Diagram](Docs/Hardware/Hardware_Component_Specification.md#port-map)
 
 2. Software Installation
 
@@ -112,10 +141,10 @@ This modular architecture ensures clear separation of concerns, enhances maintai
 - First you have to setup Workwi simulator for the project. The setup guide can be found [here](https://docs.wokwi.com/vscode/getting-started) and the simulation can be found [here](Simulation/diagram.json)
 
 ## Documentation
-
-- Requirment Documents 
-    - [Document 01](Docs/Requirements/In21-EN2853-Programming_Assignment_1.pdf)
-    - [Document 02](Docs/Requirements/In21_EN2853_Programming_Assignment_2.pdf)
+> [!NOTE]
+> The full documentation can be found in the [Requirements](Docs/Requirements/) folder.
+> - [Document 01](Docs/Requirements/In21-EN2853-Programming_Assignment_1.pdf)
+> - [Document 02](Docs/Requirements/In21_EN2853_Programming_Assignment_2.pdf)
 
 ## License
 
