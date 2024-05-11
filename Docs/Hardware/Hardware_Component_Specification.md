@@ -4,6 +4,8 @@
 
 ### ESP32 Development Board
 
+![ESP32](/Design/Esp32.jpg =500x)
+
 **Description:**
 The ESP32 development board serves as the central processing unit of the MediBox system, responsible for executing the embedded software, controlling peripheral devices, and managing communication with the MQTT broker.
 
@@ -33,6 +35,8 @@ The ESP32 development board serves as the central processing unit of the MediBox
 - References: [Espressif Systems](https://www.espressif.com/)
 
 ### OLED Display (SSD1306)
+
+![OLED](/Design/ssd1306.jpeg =500x)
 
 **Description:**
 The OLED display provides a visual interface for the MediBox system, displaying the current time, date, sensor readings, alarm status, and user menus.
@@ -64,6 +68,8 @@ The OLED display provides a visual interface for the MediBox system, displaying 
 
 ### Buzzer
 
+![Buzzer](/Design/Buzzer.jpeg =500x)
+
 **Description:**
 The buzzer serves as an audible alarm indicator, notifying users when a medication alarm is triggered.
 
@@ -87,6 +93,8 @@ The buzzer serves as an audible alarm indicator, notifying users when a medicati
 - References: [Arduino](https://www.arduino.cc/)
 
 ### Push Buttons
+
+![Push Buttons](/Design/push_button.jpeg =500x)
 
 **Description:**
 The push buttons provide user input for navigating menus, configuring settings, and interacting with the MediBox system.
@@ -117,6 +125,8 @@ The push buttons provide user input for navigating menus, configuring settings, 
 
 ### Light Dependent Resistors (LDRs)
 
+![LDRs](/Design/ldr.jpeg =500x)
+
 **Description:**
 The LDRs measure ambient light intensity, providing data for adjusting the shaded sliding window position based on user-defined parameters for different medicines.
 
@@ -145,6 +155,8 @@ The LDRs measure ambient light intensity, providing data for adjusting the shade
 - References: [Arduino](https://www.arduino.cc/)
 
 ### Servo Motor
+
+![Servo Motor](/Design/servoMotor.jpeg =500x)
 
 **Description:**
 The servo motor controls the position of the shaded sliding window, adjusting the amount of light exposure based on the measured light intensity and user-defined parameters.
