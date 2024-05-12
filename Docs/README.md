@@ -12,7 +12,7 @@ The MediBox system consists of hardware components including an **OLED screen**,
 
 ## Prototype Overview
 
- ![MediBox Prototype](Design/Medibox.png)
+ ![MediBox Prototype](/Design/Medibox.png)
 
 ## Functionalities
 
@@ -63,7 +63,7 @@ The MediBox software utilizes a modular architecture, dividing the system into d
 This modular architecture ensures clear separation of concerns, enhances maintainability, and allows for future expansion of functionalities and integration of additional components.
 
 > [!TIP]
-> Full Documentation about Softaware Architecture can be found [here](Docs/Software/Softaware_Architecture.md)
+> Full Documentation about Softaware Architecture can be found [here](/Docs/Software/Softaware_Architecture.md)
 
 ## Hardware Components
 
@@ -83,7 +83,7 @@ The hardware components of the MediBox system play a crucial role in its proper 
 6. Servo Motor: The servo motor controls the movement of the shaded sliding window based on the input from the LDRs and user-defined parameters.
 
 > [!TIP]
-> Full Documentation about Hardware Components can be found [here](Docs/Hardware/Hardware_Component_Specification.md).
+> Full Documentation about Hardware Components can be found [here](/Docs/Hardware/Hardware_Component_Specification.md).
 
 > [!WARNING]
 > Hardware component change will be affect for the change in configuations
@@ -91,12 +91,12 @@ The hardware components of the MediBox system play a crucial role in its proper 
 ## Requirements
 
 1. Hardware Components
-    - [ESP32 Development Board](Design/Esp32.jpg)
-    - [OLED Display](Design/ssd1306.jpeg)
-    - [Buzzer](Design/Buzzer.jpeg)
-    - [Push Buttons](Design/push_button.jpeg)
-    - [Light Dependent Resistors (LDRs)](Design/ldr.jpeg)
-    - [Servo Motor](Design/servoMotor.jpeg)
+    - [ESP32 Development Board](/Design/Esp32.jpg)
+    - [OLED Display](/Design/ssd1306.jpeg)
+    - [Buzzer](/Design/Buzzer.jpeg)
+    - [Push Buttons](/Design/push_button.jpeg)
+    - [Light Dependent Resistors (LDRs)](/Design/ldr.jpeg)
+    - [Servo Motor](/Design/servoMotor.jpeg)
 
 2. Software Components
 
@@ -113,7 +113,7 @@ The hardware components of the MediBox system play a crucial role in its proper 
 1. Hardware Installation
 
     - Connect the components as given in the 
-    [Port Map](Docs/Hardware/Hardware_Component_Specification.md#port-map)
+    [Port Map](/Docs/Hardware/Hardware_Component_Specification.md#port-map)
 
 2. Software Installation
 
@@ -126,7 +126,7 @@ The hardware components of the MediBox system play a crucial role in its proper 
 
     - Install Node-RED as given in the [official documentation](https://nodered.org/docs/getting-started/)
 
-    - Import the Node-RED flow from the [Node-RED Flow](Dashboard/dashboard.json)
+    - Import the Node-RED flow from the [Node-RED Flow](/Dashboard/dashboard.json)
   
 3. Run the Project
 
@@ -139,13 +139,13 @@ The hardware components of the MediBox system play a crucial role in its proper 
 
 ## Simulation
 
-- First you have to setup Workwi simulator for the project. The setup guide can be found [here](https://docs.wokwi.com/vscode/getting-started) and the simulation can be found [here](Simulation/diagram.json)
+- First you have to setup Workwi simulator for the project. The setup guide can be found [here](https://docs.wokwi.com/vscode/getting-started) and the simulation can be found [here](/Simulation/diagram.json)
 
 ## Documentation
 > [!TIP]
-> The full documentation can be found in the [Requirements](Docs/Requirements/) folder.
-> - [Document 01](Docs/Requirements/In21-EN2853-Programming_Assignment_1.pdf)
-> - [Document 02](Docs/Requirements/In21_EN2853_Programming_Assignment_2.pdf)
+> The full documentation can be found in the [Requirements](/Docs/Requirements/) folder.
+> - [Document 01](/Docs/Requirements/In21-EN2853-Programming_Assignment_1.pdf)
+> - [Document 02](/Docs/Requirements/In21_EN2853_Programming_Assignment_2.pdf)
 
 ## License
 
