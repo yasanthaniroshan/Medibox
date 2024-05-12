@@ -112,8 +112,8 @@ The hardware components of the MediBox system play a crucial role in its proper 
 
 1. Hardware Installation
 
-    - Connect the components as given in the Schemetic Diagram
-    [Schemetic Diagram](Docs/Hardware/Hardware_Component_Specification.md#port-map)
+    - Connect the components as given in the 
+    [Port Map](Docs/Hardware/Hardware_Component_Specification.md#port-map)
 
 2. Software Installation
 
@@ -142,7 +142,7 @@ The hardware components of the MediBox system play a crucial role in its proper 
 - First you have to setup Workwi simulator for the project. The setup guide can be found [here](https://docs.wokwi.com/vscode/getting-started) and the simulation can be found [here](Simulation/diagram.json)
 
 ## Documentation
-> [!NOTE]
+> [!TIP]
 > The full documentation can be found in the [Requirements](Docs/Requirements/) folder.
 > - [Document 01](Docs/Requirements/In21-EN2853-Programming_Assignment_1.pdf)
 > - [Document 02](Docs/Requirements/In21_EN2853_Programming_Assignment_2.pdf)
